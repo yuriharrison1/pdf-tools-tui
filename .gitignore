@@ -1,0 +1,19 @@
+# Logs e cache
+config/logs/
+config/cache/
+config/presets/state.conf
+
+# Temporários
+*.tmp
+/tmp/
+
+# Arquivos de ambiente
+.env
+
+# Editor
+.vscode/
+*.swp
+*~
+
+# Dados de sessão Claude (não é código do projeto)
+.claude/
