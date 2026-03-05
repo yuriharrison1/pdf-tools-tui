@@ -121,19 +121,32 @@ convert_pdf_to_docx() {
 
 convert_pdf_to_odt() {
     select_pdf_file || return
-    
+
+    if ! command -v libreoffice &>/dev/null; then
+        echo -e "${RED}❌ libreoffice não encontrado.${NC}"
+        read -p "Pressione ENTER para continuar"
+        return
+    fi
+
     local output_name="${SELECTED_FILE%.*}.odt"
     read -p "Nome do arquivo ODT [$output_name]: " output
     output=${output:-$output_name}
-    
-    libreoffice --headless --convert-to odt "$SELECTED_FILE" --outdir "$(dirname "$output")"
-    
-    if [ $? -eq 0 ]; then
+
+    local out_dir
+    out_dir="$(dirname "$output")"
+    [ -z "$out_dir" ] && out_dir="."
+
+    libreoffice --headless --convert-to odt "$SELECTED_FILE" --outdir "$out_dir" 2>/dev/null
+    local lo_generated="$out_dir/$(basename "${SELECTED_FILE%.*}").odt"
+    [ -f "$lo_generated" ] && [ "$lo_generated" != "$output" ] && mv "$lo_generated" "$output"
+
+    if [ -f "$output" ]; then
         echo -e "${GREEN}✅ Convertido: $output${NC}"
+        log_operation "PDF→ODT" "$SELECTED_FILE" "$output"
     else
         echo -e "${RED}❌ Erro na conversão${NC}"
     fi
-    
+
     read -p "Pressione ENTER para continuar"
 }
 
@@ -159,18 +172,23 @@ convert_pdf_to_html() {
             if command -v pdf2htmlEX &> /dev/null; then
                 pdf2htmlEX "$SELECTED_FILE" "$output"
             else
-                echo -e "${RED}pdf2htmlEX não instalado${NC}"
+                echo -e "${RED}❌ pdf2htmlEX não instalado${NC}"
+                read -p "Pressione ENTER para continuar"
+                return
             fi
             ;;
         3)
             pandoc "$SELECTED_FILE" -o "$output"
             ;;
     esac
-    
+
     if [ -f "$output" ]; then
         echo -e "${GREEN}✅ HTML gerado: $output${NC}"
+        log_operation "PDF→HTML" "$SELECTED_FILE" "$output"
+    else
+        echo -e "${RED}❌ Erro na conversão para HTML${NC}"
     fi
-    
+
     read -p "Pressione ENTER para continuar"
 }
 

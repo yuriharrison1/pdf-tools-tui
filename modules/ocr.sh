@@ -43,14 +43,20 @@ ocr_menu() {
 
 ocr_basic() {
     select_pdf_file || return
-    
+
+    if ! command -v ocrmypdf &>/dev/null; then
+        echo -e "${RED}❌ ocrmypdf não encontrado. Execute o instalador.${NC}"
+        read -p "Pressione ENTER para continuar"
+        return
+    fi
+
     local output_name="${SELECTED_FILE%.*}_ocr.pdf"
     read -p "Nome do arquivo de saída [$output_name]: " output
     output=${output:-$output_name}
-    
+
     echo -e "\n${CYAN}📥 Idioma padrão: português${NC}"
     echo -e "${YELLOW}Processando OCR básico...${NC}"
-    
+
     ocrmypdf --language por "$SELECTED_FILE" "$output"
     
     if [ $? -eq 0 ]; then
@@ -65,7 +71,13 @@ ocr_basic() {
 
 ocr_advanced() {
     select_pdf_file || return
-    
+
+    if ! command -v ocrmypdf &>/dev/null; then
+        echo -e "${RED}❌ ocrmypdf não encontrado. Execute o instalador.${NC}"
+        read -p "Pressione ENTER para continuar"
+        return
+    fi
+
     local output_name="${SELECTED_FILE%.*}_ocr_melhorado.pdf"
     read -p "Nome do arquivo de saída [$output_name]: " output
     output=${output:-$output_name}
@@ -105,7 +117,13 @@ ocr_advanced() {
 
 ocr_force() {
     select_pdf_file || return
-    
+
+    if ! command -v ocrmypdf &>/dev/null; then
+        echo -e "${RED}❌ ocrmypdf não encontrado. Execute o instalador.${NC}"
+        read -p "Pressione ENTER para continuar"
+        return
+    fi
+
     local output_name="${SELECTED_FILE%.*}_ocr_forcado.pdf"
     read -p "Nome do arquivo de saída [$output_name]: " output
     output=${output:-$output_name}

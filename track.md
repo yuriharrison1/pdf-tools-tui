@@ -201,6 +201,7 @@ pdf-tools-gui.tcl (v1.1)
 | 2026-03-05 | Revisao completa do codigo v2.1/v1.1: reconfirmacao e atualizacao de status de todos os bugs | Claude |
 | 2026-03-05 | Correcao de todos os bugs ativos e residuais nos modulos e na GUI | Claude |
 | 2026-03-05 | Integração modular v2.2: TUI reescrito (~260 linhas), utils.sh criado, convert.sh melhorado | Claude |
+| 2026-03-05 | Testes manuais pelo usuário — 10 novos bugs documentados (BUG-18 a BUG-27) | Yuri + Claude |
 
 ### Correcoes aplicadas nesta sessao
 
@@ -223,7 +224,104 @@ pdf-tools-gui.tcl (v1.1)
 - Criticos: **5 corrigidos** — 0 abertos
 - Medios: **7 corrigidos** — 0 abertos
 - Baixos: **5 corrigidos** — 1 aberto (BUG-14: modulos sao codigo morto — decisao arquitetural pendente)
-- **Total de bugs resolvidos: 17 de 17**
+- **Total de bugs resolvidos (ciclo anterior): 17 de 17**
+- **Novos bugs descobertos em teste (pós v2.2): 10 abertos** (BUG-18 a BUG-27)
+  - Críticos: 3 (BUG-18, BUG-19, BUG-20)
+  - Médios: 5 (BUG-21 a BUG-25)
+  - Baixos: 2 (BUG-26, BUG-27)
+
+---
+
+## Bugs Descobertos em Teste (pós v2.2)
+
+> Reportados pelo usuário em: 2026-03-05 — testes manuais na GUI e TUI
+
+---
+
+### Criticos
+
+#### BUG-18 — GUI forms detect usa `commonforms` sem `--fast` → demora muito
+**Arquivo:** `pdf-tools-gui.tcl` → `build_forms_command`
+**Descrição:** A ação "Detectar campos automaticamente" chama `commonforms "$file" "$output"` sem a flag `--fast`. Sem ela, `commonforms` faz análise completa (ML), que pode ser muito lenta. O TUI tem `forms_fast` com `--fast` como opção separada, mas a GUI não expõe isso. Usuário relatou demora excessiva — normalmente é rápido.
+**Causa provável:** Falta da flag `--fast` ou `commonforms` não instalado (neste caso o processo fica pendente sem feedback claro).
+**Acao de correcao:** Adicionar checkbox "Detecção rápida (`--fast`)" na aba Formulários da GUI; marcar por padrão. Verificar `command -v commonforms` antes de chamar.
+**Status:** `ABERTO`
+
+---
+
+#### BUG-19 — GUI utils/info não salva arquivo — só exibe no log
+**Arquivo:** `pdf-tools-gui.tcl` → `build_utils_command` → case `info`
+**Descrição:** `pdfinfo "$file"` imprime na saída padrão, que vai para o log da GUI. Nenhum arquivo é gerado. Todos os processos devem gerar arquivo de saída.
+**Acao de correcao:** Trocar comando para `pdfinfo "$file" > "[file rootname $file]_info.txt"` para salvar o resultado em arquivo.
+**Status:** `ABERTO`
+
+---
+
+#### BUG-20 — GUI forms/extract ainda usa extensão `.json`
+**Arquivo:** `pdf-tools-gui.tcl` → `build_forms_command` → case `extract`
+**Descrição:** O BUG-08 foi corrigido no TUI e em `modules/forms.sh`, mas a GUI ainda usa `[file rootname $file].json`. A saída do `pdfcpu form list` é texto formatado, não JSON.
+**Acao de correcao:** Mudar extensão para `.txt` no `build_forms_command`.
+**Status:** `ABERTO`
+
+---
+
+### Medios
+
+#### BUG-21 — TUI `forms_detect`, `forms_detect_signature`, `forms_fast` sem check de `commonforms`
+**Arquivo:** `modules/forms.sh:48,71,90`
+**Descrição:** As três funções chamam `commonforms` diretamente sem `command -v commonforms`. Se não instalado, o erro é genérico e confuso.
+**Acao de correcao:** Adicionar guard `command -v commonforms || { echo "❌ commonforms não encontrado"; return 1; }` no topo de cada função.
+**Status:** `ABERTO`
+
+---
+
+#### BUG-22 — TUI `forms_remove_fields` e `forms_to_pdfa` sem verificação de erro (falso sucesso)
+**Arquivo:** `modules/forms.sh:177,193`
+**Descrição:** Ambas as funções chamam `gs` e imprimem "✅" incondicionalmente, sem verificar `$?` ou se o arquivo foi gerado. Se `gs` falhar, o usuário vê sucesso falso e nenhum arquivo é criado.
+**Acao de correcao:** Adicionar `if [ $? -eq 0 ] && [ -f "$output" ]; then ... else echo ❌; fi`.
+**Status:** `ABERTO`
+
+---
+
+#### BUG-23 — TUI `ocr_basic`, `ocr_advanced`, `ocr_force` sem `command -v ocrmypdf`
+**Arquivo:** `modules/ocr.sh:54,94,114`
+**Descrição:** O modo interativo chama `ocrmypdf` diretamente sem checar se está instalado. As funções `_direct` têm o guard, mas o menu interativo não.
+**Acao de correcao:** Adicionar `command -v ocrmypdf &>/dev/null || { echo "❌ ocrmypdf não encontrado"; ...; return; }` no início de cada função.
+**Status:** `ABERTO`
+
+---
+
+#### BUG-24 — TUI `convert_pdf_to_odt` — BUG-09 não corrigido (nome LibreOffice ignorado)
+**Arquivo:** `modules/convert.sh:129`
+**Descrição:** `libreoffice --convert-to odt` ignora o nome de destino e gera `basename.odt` no diretório de saída. Não foi aplicado o mesmo padrão `mv` que foi feito em `convert_docx_to_pdf`.
+**Acao de correcao:** Capturar o arquivo gerado pelo LibreOffice e renomear com `mv` para o nome desejado, igual ao padrão aplicado em `convert_docx_to_pdf`.
+**Status:** `ABERTO`
+
+---
+
+#### BUG-25 — TUI `convert_pdf_to_html` sem verificação de arquivo gerado
+**Arquivo:** `modules/convert.sh:154-169`
+**Descrição:** Modos 1 (`pdftohtml`) e 3 (`pandoc`) não verificam `$?` nem `[ -f "$output" ]`. Só o modo 2 faz check de `command -v`. Se a conversão falhar silenciosamente, não há feedback de erro.
+**Acao de correcao:** Após cada conversão, verificar `[ -f "$output" ]` e exibir erro se não gerou arquivo.
+**Status:** `ABERTO`
+
+---
+
+### Baixos
+
+#### BUG-26 — TUI `forms_list_fields` — parâmetro quiet com semântica confusa
+**Arquivo:** `modules/forms.sh:149,162`
+**Descrição:** A função recebe `--quiet` como `$2` mas compara `"$quiet" = false`. Funciona por acidente (`"--quiet" != "false"` evita o prompt), mas a lógica está invertida e difícil de manter.
+**Acao de correcao:** Mudar para `[[ "$2" == "--quiet" ]] && local quiet=true || local quiet=false` e comparar `$quiet = true`.
+**Status:** `ABERTO`
+
+---
+
+#### BUG-27 — TUI `forms_fill_json` — sem validação do JSON antes de chamar pdfcpu
+**Arquivo:** `modules/forms.sh:125-142`
+**Descrição:** Usa `select json in *.json` sem verificar se há arquivos `.json` no diretório. Se não houver, o `select` trava esperando entrada que nunca será válida.
+**Acao de correcao:** Checar `ls *.json 2>/dev/null` antes do `select`; exibir erro e retornar se não houver arquivos.
+**Status:** `ABERTO`
 
 ---
 

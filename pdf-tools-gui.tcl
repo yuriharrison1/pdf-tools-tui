@@ -36,6 +36,7 @@ set convert_type "pdf_to_txt"
 set quality_var "medium"
 set preserve_layout 1
 set form_action "detect"
+set opt_fast_detect 1
 set utils_action "info"
 
 # Frame principal
@@ -255,10 +256,17 @@ radiobutton $forms_tab.controls.signature \
 pack $forms_tab.controls.signature -anchor w -pady 5
 
 radiobutton $forms_tab.controls.extract \
-    -text "Extrair campos para JSON" \
+    -text "Extrair campos para arquivo" \
     -variable form_action -value "extract" \
     -bg $bg_color -fg $fg_color
 pack $forms_tab.controls.extract -anchor w -pady 5
+
+checkbutton $forms_tab.controls.fast \
+    -text "Detecção rápida (--fast)" \
+    -variable opt_fast_detect \
+    -bg $bg_color -fg $fg_color \
+    -activebackground $bg_color
+pack $forms_tab.controls.fast -anchor w -pady 2
 
 button $forms_tab.controls.apply -text "Processar Formulário" \
     -command {start_operation "forms"} \
@@ -470,25 +478,29 @@ proc build_convert_command {} {
 
 # Construir comando de formulários
 proc build_forms_command {} {
-    global selected_files form_action
-    
+    global selected_files form_action opt_fast_detect
+
     set file [lindex $selected_files 0]
-    
+
     switch -- $form_action {
         "detect" {
             set output "[file rootname $file]_com_campos.pdf"
-            set cmd "commonforms \"$file\" \"$output\""
+            set cmd "command -v commonforms >/dev/null 2>&1 || { echo '❌ commonforms não encontrado'; exit 1; }; commonforms"
+            if {$opt_fast_detect} { append cmd " --fast" }
+            append cmd " \"$file\" \"$output\""
         }
         "signature" {
             set output "[file rootname $file]_assinaturas.pdf"
-            set cmd "commonforms --use-signature-fields \"$file\" \"$output\""
+            set cmd "command -v commonforms >/dev/null 2>&1 || { echo '❌ commonforms não encontrado'; exit 1; }; commonforms --use-signature-fields"
+            if {$opt_fast_detect} { append cmd " --fast" }
+            append cmd " \"$file\" \"$output\""
         }
         "extract" {
-            set output "[file rootname $file].json"
+            set output "[file rootname $file]_campos.txt"
             set cmd "pdfcpu form list \"$file\" > \"$output\" 2>/dev/null"
         }
     }
-    
+
     return $cmd
 }
 
@@ -500,7 +512,8 @@ proc build_utils_command {} {
     
     switch -- $utils_action {
         "info" {
-            set cmd "pdfinfo \"$file\""
+            set output "[file rootname $file]_info.txt"
+            set cmd "pdfinfo \"$file\" > \"$output\""
         }
         "merge" {
             set files_str ""
